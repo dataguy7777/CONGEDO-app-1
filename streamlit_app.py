@@ -1,12 +1,23 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 from datetime import datetime, timedelta
 import calendar
 import plotly.graph_objects as go
 
-# Streamlit app configuration
-st.set_page_config(page_title="Parental Leave Maximizer", layout="wide")
+# List of public holidays in Italy
+ITALIAN_HOLIDAYS = [
+    "2025-01-01",  # New Year's Day
+    "2025-01-06",  # Epiphany
+    "2025-04-25",  # Liberation Day
+    "2025-05-01",  # Labor Day
+    "2025-06-02",  # Republic Day
+    "2025-08-15",  # Assumption of Mary
+    "2025-11-01",  # All Saints' Day
+    "2025-12-08",  # Immaculate Conception
+    "2025-12-25",  # Christmas Day
+    "2025-12-26",  # St. Stephen's Day
+]
+ITALIAN_HOLIDAYS = pd.to_datetime(ITALIAN_HOLIDAYS)
 
 # Helper function to optimize leave
 def optimize_leave(start_date: datetime, leave_format: str):
@@ -44,14 +55,16 @@ def optimize_leave(start_date: datetime, leave_format: str):
 
     return df_schedule, max_elapsed_days
 
-def render_calendar(leave_schedule):
+# Helper function to render calendar
+def render_calendar(leave_schedule, start_year):
     """
-    Render a visual calendar with leave days highlighted.
+    Render a calendar visualization with leave days (blue), holidays (green), and working days (white).
     
     Args:
         leave_schedule (DataFrame): Optimized leave schedule.
+        start_year (int): Starting year for the calendar.
     """
-    st.write("### Leave Calendar")
+    st.write("### Leave Calendar with Holidays")
 
     # Create a list of all leave days
     leave_days = []
@@ -59,47 +72,49 @@ def render_calendar(leave_schedule):
         for day in range(row["Leave Duration"]):
             leave_days.append(row["Start Date"] + timedelta(days=day))
     
-    # Convert leave_days to a pandas Series for compatibility
     leave_days = pd.Series(pd.to_datetime(leave_days))
 
-    # Generate calendar visualization for the year
-    calendar_fig = go.Figure()
-
+    # Generate calendar visualization month by month
     for month in range(1, 13):
-        # Filter leave days for the specific month
-        month_leave_days = leave_days[leave_days.dt.month == month]
-        
-        # Create all days for the month
-        days_in_month = pd.date_range(f"{leave_days.min().year}-{month:02d}-01", periods=31, freq="D")
+        days_in_month = pd.date_range(f"{start_year}-{month:02d}-01", periods=31, freq="D")
         month_days = [d for d in days_in_month if d.month == month]
 
-        # Highlight leave days
-        highlights = [1 if d in month_leave_days.values else 0 for d in month_days]
+        # Prepare data for visualization
+        day_colors = []
+        for day in month_days:
+            if day in leave_days.values:
+                day_colors.append("blue")  # Leave days
+            elif day in ITALIAN_HOLIDAYS.values:
+                day_colors.append("green")  # Public holidays
+            else:
+                day_colors.append("white")  # Working days
 
-        calendar_fig.add_trace(
-            go.Heatmap(
-                z=highlights,
-                x=[d.strftime("%a") for d in month_days],
-                y=[f"{d.day}" for d in month_days],
-                hoverinfo="text",
-                text=[f"{d:%Y-%m-%d}" for d in month_days],
-                colorscale=["#fff", "#007ACC"],
-                showscale=False,
+        # Create the calendar figure for the month
+        fig = go.Figure(data=go.Table(
+            header=dict(
+                values=[f"<b>{calendar.month_name[month]} {start_year}</b>"],
+                align='center',
+                font=dict(size=16),
+                fill_color="lightgray"
+            ),
+            cells=dict(
+                values=[[f"{day.day} ({day.strftime('%a')})" for day in month_days]],
+                align='center',
+                font=dict(color=day_colors),
+                fill_color=day_colors
             )
+        ))
+
+        fig.update_layout(
+            margin=dict(l=0, r=0, t=30, b=0),
+            height=300
         )
 
-    calendar_fig.update_layout(
-        title="Leave Calendar Visualization",
-        xaxis_title="Day of the Week",
-        yaxis_title="Day of the Month",
-        margin=dict(l=0, r=0, t=30, b=0)
-    )
-
-    st.plotly_chart(calendar_fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True)
 
 # Streamlit app
 def main():
-    st.title("Parental Leave Maximizer")
+    st.title("Parental Leave Maximizer with Calendar View")
     st.markdown(
         """
         Use this app to plan and maximize your parental leave usage while adhering to the 180-day limit.
@@ -115,7 +130,8 @@ def main():
         leave_schedule, max_elapsed_days = optimize_leave(start_date, leave_format)
         st.subheader(f"Maximized Leave Elapsed: {max_elapsed_days} days")
         
-        render_calendar(leave_schedule)
+        start_year = start_date.year
+        render_calendar(leave_schedule, start_year)
         
         st.download_button(
             label="Download Leave Schedule",
