@@ -59,7 +59,7 @@ def optimize_leave(start_date: datetime, leave_format: str):
 
 
 
-from matplotlib.colors import ListedColormap
+
 
 def render_calendar_with_calplot(leave_schedule):
     """
@@ -123,12 +123,13 @@ def render_calendar_with_calplot(leave_schedule):
     )
 
     # Add annotations for numbered leave days
-    for i, day in enumerate(calplot_values.index):
-        if calplot_values[day] == 1:  # Leave Day
-            ax.text(
-                x=(day - day.replace(hour=0, minute=0, second=0)).days % 7 + 0.5,
-                y=-(day.dayofweek + day.day) // 7 + 0.5,
-                s=text_annotations[i],
+    for i, (day, value) in enumerate(calplot_values.items()):
+        if value == 1:  # Leave Day
+            week_position = day.weekday()  # Position in the week (0=Monday, 6=Sunday)
+            row_position = (day - day.replace(day=1)).days // 7  # Row in the calendar
+            ax.annotate(
+                text=text_annotations[i],
+                xy=(week_position + 0.5, row_position + 0.5),
                 color="white",
                 ha="center",
                 va="center",
