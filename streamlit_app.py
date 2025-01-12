@@ -104,22 +104,28 @@ def render_calendar_with_calplot(leave_schedule):
 
     # Prepare text annotations for leave days
     text_annotations = all_days.index.map(
-        lambda x: str(leave_day_numbers[x]) if x in leave_day_numbers else ""
+        lambda x: str(leave_day_numbers[x]) if x in leave_day_numbers else "-"
     )
-
-    # Define custom colormap
-    cmap = ListedColormap(["white", "blue", "orange", "green", "lightgreen"])
 
     # Plot with calplot
     fig, axs = calplot.calplot(
         all_days["Value"],
-        cmap=cmap,
+        cmap="RdBu",
         suptitle="Leave Calendar Heatmap",
         suptitle_kws={"x": 0.5, "y": 1.0},
         figsize=(16, 8),
+        textformat="{:.0f}",
+        textfiller="-",
+        textcolor="black",
     )
 
     st.pyplot(fig)
+
+    # Show DataFrame
+    st.write("### Leave Schedule Details")
+    all_days.reset_index(inplace=True)
+    all_days.rename(columns={"index": "Date", "Type": "Day Type"}, inplace=True)
+    st.dataframe(all_days)
 
 # Streamlit app
 def main():
