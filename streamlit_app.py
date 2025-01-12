@@ -40,7 +40,6 @@ def optimize_leave(start_date: datetime, ferie_limit: int):
     weekend_counter = 1
 
     while days_limit > 0:
-        # Determine if this week includes a weekend
         week_start = current_date
         week_end = week_start + timedelta(days=6)
 
@@ -77,12 +76,12 @@ def optimize_leave(start_date: datetime, ferie_limit: int):
 # Helper function: Render calendar
 def render_calendar_with_calplot(schedule):
     """
-    Render a calendar visualization using calplot with detailed leave days, ferie, weekends, and holidays.
+    Render a calendar visualization using calplot with distinct colors for day types.
 
     Args:
         schedule (DataFrame): Optimized leave schedule.
     """
-    st.write("### Leave Calendar Heatmap")
+    st.write("### Leave Calendar with Distinct Colors")
 
     # Map day types to numeric values
     schedule["Value"] = schedule["Day Type"].map(
@@ -92,19 +91,18 @@ def render_calendar_with_calplot(schedule):
     # Generate a Series for calplot
     values = pd.Series(schedule["Value"].values, index=pd.to_datetime(schedule["Date"]))
 
-    # Define custom colormap
+    # Define a custom colormap with distinct colors
     cmap = ListedColormap(["white", "blue", "orange", "lightgreen", "green"])
 
-    # Plot with calplot
-    fig, axs = calplot.calplot(
+    # Plot the calendar with categorical colors
+    fig, ax = plt.subplots(figsize=(16, 8))
+    calplot.calplot(
         values,
-        cmap="RdBu",
-        suptitle="Leave Calendar Heatmap",
-        suptitle_kws={"x": 0.5, "y": 1.0},
-        figsize=(16, 8),
-        textformat="{:.0f}",
-        textfiller="-",
-        textcolor="black",
+        cmap=cmap,
+        textfiller="",
+        suptitle="Leave Calendar with Categorical Colors",
+        suptitle_kws={"fontsize": 16},
+        fig=fig,
     )
 
     st.pyplot(fig)
