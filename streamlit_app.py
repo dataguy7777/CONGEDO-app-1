@@ -33,83 +33,71 @@ def optimize_leave(start_date: datetime, ferie_limit: int):
     """
     days_limit = 180
     current_date = pd.to_datetime(start_date)
-    leave_schedule = []
+    schedule = []
+
+    parental_leave_counter = 1
+    ferie_counter = 1
+    weekend_counter = 1
 
     while days_limit > 0:
-        # Check if the week includes a weekend
+        # Determine if this week includes a weekend
         week_start = current_date
         week_end = week_start + timedelta(days=6)
 
-        if week_start.weekday() <= 4 and week_end.weekday() >= 5:  # Contains a weekend
-            if ferie_limit >= 2:  # Use ferie on Monday and Friday
+        # Use ferie on Monday and Friday to skip weekend
+        if week_start.weekday() <= 4 and week_end.weekday() >= 5:
+            if ferie_limit >= 2:
+                schedule.append((week_start, "Leave Day", ferie_counter))
+                ferie_counter += 1
+                schedule.append((week_start + timedelta(days=4), "Leave Day", ferie_counter))
+                ferie_counter += 1
                 ferie_limit -= 2
-                leave_schedule.append((current_date, "Ferie"))  # Monday
-                leave_schedule.append((current_date + timedelta(days=4), "Ferie"))  # Friday
             else:
-                leave_schedule.append((current_date, "Leave"))  # Count full week
-                days_limit -= 7
+                for i in range(7):
+                    if week_start.weekday() < 5:  # Weekday: Parental Leave Day
+                        schedule.append((week_start, "Parental Leave Day", parental_leave_counter))
+                        parental_leave_counter += 1
+                        days_limit -= 1
+                    else:  # Weekend
+                        schedule.append((week_start, "Weekend", weekend_counter))
+                        weekend_counter += 1
+                    week_start += timedelta(days=1)
             current_date += timedelta(days=7)
-        else:  # No weekend in the period
-            leave_schedule.append((current_date, "Leave"))
-            days_limit -= 5
-            current_date += timedelta(days=7)
-
-    leave_schedule_df = pd.DataFrame(leave_schedule, columns=["Start Date", "Type"])
-    return leave_schedule_df
-
-# Helper function: Render calendar
-def render_calendar_with_calplot(leave_schedule):
-    """
-    Render a calendar visualization using calplot with numbered leave days, ferie, weekends, and holidays.
-
-    Args:
-        leave_schedule (DataFrame): Optimized leave schedule.
-    """
-    st.write("### Leave Calendar Heatmap with 'Ferie' and Leave Days")
-
-    # Collect leave and ferie days
-    leave_days = []
-    ferie_days = []
-    leave_day_numbers = {}
-    leave_counter = 1
-
-    for _, row in leave_schedule.iterrows():
-        if row["Type"] == "Ferie":
-            ferie_days.append(row["Start Date"])
-        elif row["Type"] == "Leave":
-            current_date = row["Start Date"]
-            for i in range(7):  # Count full week
-                leave_days.append(current_date)
-                leave_day_numbers[current_date] = leave_counter
-                leave_counter += 1
+        else:  # Week without a weekend
+            for i in range(5):
+                schedule.append((current_date, "Parental Leave Day", parental_leave_counter))
+                parental_leave_counter += 1
+                days_limit -= 1
                 current_date += timedelta(days=1)
 
-    leave_days = pd.Series(pd.to_datetime(leave_days), name="Leave Days")
-    ferie_days = pd.Series(pd.to_datetime(ferie_days), name="Ferie Days")
+    # Create a DataFrame for the schedule
+    schedule_df = pd.DataFrame(schedule, columns=["Date", "Day Type", "Sequence"])
+    return schedule_df
 
-    # Combine leave days, ferie days, public holidays, and weekends
-    all_days_index = pd.date_range(start=leave_days.min(), end=leave_days.max(), freq="D")
-    all_days = pd.DataFrame(index=all_days_index)
-    all_days["Type"] = "Working Day"
-    all_days.loc[all_days.index.isin(leave_days), "Type"] = "Leave Day"
-    all_days.loc[all_days.index.isin(ferie_days), "Type"] = "Ferie"
-    all_days.loc[all_days.index.isin(ITALIAN_HOLIDAYS), "Type"] = "Holiday"
-    all_days["Is Weekend"] = all_days.index.weekday >= 5
-    all_days.loc[all_days["Is Weekend"], "Type"] = "Weekend"
+# Helper function: Render calendar
+def render_calendar_with_calplot(schedule):
+    """
+    Render a calendar visualization using calplot with detailed leave days, ferie, weekends, and holidays.
 
-    # Map types to numerical values for visualization
-    all_days["Value"] = all_days["Type"].map(
-        {"Leave Day": 1, "Ferie": 2, "Holiday": 3, "Weekend": 4, "Working Day": 0}
+    Args:
+        schedule (DataFrame): Optimized leave schedule.
+    """
+    st.write("### Leave Calendar Heatmap")
+
+    # Map day types to numeric values
+    schedule["Value"] = schedule["Day Type"].map(
+        {"Parental Leave Day": 1, "Leave Day": 2, "Holiday": 3, "Weekend": 4, "Working Day": 0}
     )
 
-    # Prepare text annotations for leave days
-    text_annotations = all_days.index.map(
-        lambda x: str(leave_day_numbers[x]) if x in leave_day_numbers else "-"
-    )
+    # Generate a Series for calplot
+    values = pd.Series(schedule["Value"].values, index=pd.to_datetime(schedule["Date"]))
+
+    # Define custom colormap
+    cmap = ListedColormap(["white", "blue", "orange", "lightgreen", "green"])
 
     # Plot with calplot
     fig, axs = calplot.calplot(
-        all_days["Value"],
+        values,
         cmap="RdBu",
         suptitle="Leave Calendar Heatmap",
         suptitle_kws={"x": 0.5, "y": 1.0},
@@ -121,11 +109,9 @@ def render_calendar_with_calplot(leave_schedule):
 
     st.pyplot(fig)
 
-    # Show DataFrame
-    st.write("### Leave Schedule Details")
-    all_days.reset_index(inplace=True)
-    all_days.rename(columns={"index": "Date", "Type": "Day Type"}, inplace=True)
-    st.dataframe(all_days)
+    # Display schedule DataFrame
+    st.write("### Detailed Leave Schedule")
+    st.dataframe(schedule)
 
 # Streamlit app
 def main():
@@ -142,13 +128,13 @@ def main():
     submit = st.button("Calculate Optimal Leave")
     
     if submit:
-        leave_schedule = optimize_leave(start_date, ferie_limit)
+        schedule = optimize_leave(start_date, ferie_limit)
         st.subheader("Leave Schedule Generated Successfully!")
         
-        render_calendar_with_calplot(leave_schedule)
+        render_calendar_with_calplot(schedule)
         st.download_button(
             label="Download Leave Schedule",
-            data=leave_schedule.to_csv(index=False),
+            data=schedule.to_csv(index=False),
             file_name="leave_schedule.csv",
             mime="text/csv"
         )
