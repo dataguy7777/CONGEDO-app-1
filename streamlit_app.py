@@ -58,37 +58,49 @@ def optimize_leave(start_date: datetime, leave_format: str):
     return df_schedule, max_elapsed_days
 
 
+
 def render_calendar_with_calplot(leave_schedule):
     """
-    Render a calendar visualization using calplot with leave days and holidays.
+    Render a calendar visualization using calplot with leave days, holidays, and weekends.
 
     Args:
         leave_schedule (DataFrame): Optimized leave schedule.
     """
     st.write("### Leave Calendar Heatmap")
 
-    # Create a list of all leave days
+    # Create a list of all leave days excluding weekends
     leave_days = []
     for _, row in leave_schedule.iterrows():
-        for day in range(row["Leave Duration"]):
-            leave_days.append(row["Start Date"] + timedelta(days=day))
-    
+        current_date = row["Start Date"]
+        for _ in range(row["Leave Duration"]):
+            if current_date.weekday() < 5:  # Exclude Saturdays (5) and Sundays (6)
+                leave_days.append(current_date)
+            current_date += timedelta(days=1)
+
     leave_days = pd.Series(pd.to_datetime(leave_days), name="Leave Days")
 
-    # Combine leave days and public holidays into a DataFrame
-    all_days_index = pd.Index(leave_days).union(pd.Index(ITALIAN_HOLIDAYS))  # Merge leave and holidays
+    # Combine leave days, public holidays, and weekends into a DataFrame
+    all_days_index = pd.Index(leave_days).union(pd.Index(ITALIAN_HOLIDAYS))
     all_days = pd.DataFrame(index=all_days_index)
     all_days["Type"] = "Working Day"
     all_days.loc[all_days.index.isin(leave_days), "Type"] = "Leave Day"
     all_days.loc[all_days.index.isin(ITALIAN_HOLIDAYS), "Type"] = "Holiday"
-    all_days["Value"] = all_days["Type"].map({"Leave Day": 1, "Holiday": 2, "Working Day": 0})
+
+    # Add weekends to the calendar
+    all_days["Is Weekend"] = all_days.index.weekday >= 5
+    all_days.loc[all_days["Is Weekend"], "Type"] = "Weekend"
+
+    # Map types to numerical values for visualization
+    all_days["Value"] = all_days["Type"].map(
+        {"Leave Day": 1, "Holiday": 2, "Weekend": 3, "Working Day": 0}
+    )
     
     # Prepare values for calplot
     calplot_values = all_days["Value"]
     calplot_values.index = pd.to_datetime(all_days.index)
 
-    # Define custom colormap
-    cmap = ListedColormap(["white", "blue", "green"])
+    # Define custom colormap (white for working days, blue for leave days, green for holidays, light green for weekends)
+    cmap = ListedColormap(["white", "blue", "green", "lightgreen"])
 
     # Plot with calplot
     fig, ax = calplot.calplot(
