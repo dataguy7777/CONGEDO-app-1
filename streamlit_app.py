@@ -114,7 +114,7 @@ def render_calendar_with_calplot(leave_schedule):
     cmap = ListedColormap(["white", "blue", "green", "lightgreen"])
 
     # Plot with calplot
-    fig, ax = calplot.calplot(
+    fig, axs = calplot.calplot(
         calplot_values,
         cmap=cmap,
         suptitle="Leave Calendar Heatmap",
@@ -122,21 +122,24 @@ def render_calendar_with_calplot(leave_schedule):
         figsize=(16, 8),
     )
 
-    # Add annotations for numbered leave days
-    for i, (day, value) in enumerate(calplot_values.items()):
-        if value == 1:  # Leave Day
-            week_position = day.weekday()  # Position in the week (0=Monday, 6=Sunday)
-            row_position = (day - day.replace(day=1)).days // 7  # Row in the calendar
-            ax.annotate(
-                text=text_annotations[i],
-                xy=(week_position + 0.5, row_position + 0.5),
-                color="white",
-                ha="center",
-                va="center",
-                fontsize=8,
-            )
+    # Annotate numbered leave days on each subplot
+    for ax in axs.ravel():  # Flatten the axes array
+        for i, (day, value) in enumerate(calplot_values.items()):
+            if value == 1:  # Leave Day
+                week_position = day.weekday()  # Position in the week (0=Monday, 6=Sunday)
+                row_position = (day - day.replace(day=1)).days // 7  # Row in the calendar
+                ax.text(
+                    x=week_position + 0.5,
+                    y=row_position + 0.5,
+                    s=text_annotations[i],
+                    color="white",
+                    ha="center",
+                    va="center",
+                    fontsize=8,
+                )
 
     st.pyplot(fig)
+
 
 
 # Streamlit app
