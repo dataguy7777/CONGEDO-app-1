@@ -56,7 +56,6 @@ def optimize_leave(start_date: datetime, leave_format: str):
 
     return df_schedule, max_elapsed_days
 
-# Helper function to render calendar using calplot
 def render_calendar_with_calplot(leave_schedule):
     """
     Render a calendar visualization using calplot with leave days and holidays.
@@ -75,7 +74,8 @@ def render_calendar_with_calplot(leave_schedule):
     leave_days = pd.Series(pd.to_datetime(leave_days), name="Leave Days")
 
     # Combine leave days and public holidays into a DataFrame
-    all_days = pd.DataFrame(index=leave_days.append(ITALIAN_HOLIDAYS).unique())
+    all_days_index = pd.Index(leave_days).union(pd.Index(ITALIAN_HOLIDAYS))  # Merge leave and holidays
+    all_days = pd.DataFrame(index=all_days_index)
     all_days["Type"] = "Working Day"
     all_days.loc[all_days.index.isin(leave_days), "Type"] = "Leave Day"
     all_days.loc[all_days.index.isin(ITALIAN_HOLIDAYS), "Type"] = "Holiday"
