@@ -44,7 +44,6 @@ def optimize_leave(start_date: datetime, leave_format: str):
 
     return df_schedule, max_elapsed_days
 
-# Helper function to render the calendar
 def render_calendar(leave_schedule):
     """
     Render a visual calendar with leave days highlighted.
@@ -60,17 +59,22 @@ def render_calendar(leave_schedule):
         for day in range(row["Leave Duration"]):
             leave_days.append(row["Start Date"] + timedelta(days=day))
     
-    leave_days = pd.to_datetime(leave_days)
+    # Convert leave_days to a pandas Series for compatibility
+    leave_days = pd.Series(pd.to_datetime(leave_days))
 
     # Generate calendar visualization for the year
     calendar_fig = go.Figure()
 
     for month in range(1, 13):
-        days_in_month = pd.date_range(f"{leave_days.min().year}-{month:02d}-01", periods=31, freq="D")
+        # Filter leave days for the specific month
         month_leave_days = leave_days[leave_days.dt.month == month]
-
+        
+        # Create all days for the month
+        days_in_month = pd.date_range(f"{leave_days.min().year}-{month:02d}-01", periods=31, freq="D")
         month_days = [d for d in days_in_month if d.month == month]
-        highlights = [1 if d in month_leave_days else 0 for d in month_days]
+
+        # Highlight leave days
+        highlights = [1 if d in month_leave_days.values else 0 for d in month_days]
 
         calendar_fig.add_trace(
             go.Heatmap(
@@ -88,6 +92,7 @@ def render_calendar(leave_schedule):
         title="Leave Calendar Visualization",
         xaxis_title="Day of the Week",
         yaxis_title="Day of the Month",
+        margin=dict(l=0, r=0, t=30, b=0)
     )
 
     st.plotly_chart(calendar_fig, use_container_width=True)
