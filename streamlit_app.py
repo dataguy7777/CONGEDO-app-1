@@ -20,19 +20,18 @@ ITALIAN_HOLIDAYS = pd.to_datetime([
 ])
 
 # Helper function: Optimize leave
-def optimize_leave(start_date: datetime):
+def optimize_leave(start_date: datetime, ferie_limit: int):
     """
     Optimize leave by strategically using 'ferie' (vacation days) on Mondays and Fridays to avoid counting weekends.
-    
+
     Args:
         start_date (datetime): Start date for leave.
-    
+        ferie_limit (int): Maximum number of "ferie" (vacation days) available.
+
     Returns:
         DataFrame: Leave schedule.
-        int: Maximum elapsed days.
     """
     days_limit = 180
-    ferie_limit = 10  # Available vacation days
     current_date = pd.to_datetime(start_date)
     leave_schedule = []
 
@@ -56,13 +55,13 @@ def optimize_leave(start_date: datetime):
             current_date += timedelta(days=7)
 
     leave_schedule_df = pd.DataFrame(leave_schedule, columns=["Start Date", "Type"])
-    return leave_schedule_df, days_limit
+    return leave_schedule_df
 
 # Helper function: Render calendar
 def render_calendar_with_calplot(leave_schedule):
     """
     Render a calendar visualization using calplot with numbered leave days, ferie, weekends, and holidays.
-    
+
     Args:
         leave_schedule (DataFrame): Optimized leave schedule.
     """
@@ -133,11 +132,12 @@ def main():
     
     # Inputs
     start_date = st.date_input("Select your starting date for leave:", value=datetime.today())
+    ferie_limit = st.number_input("Enter maximum number of 'ferie' days available:", min_value=0, value=10, step=1)
     submit = st.button("Calculate Optimal Leave")
     
     if submit:
-        leave_schedule, max_elapsed_days = optimize_leave(start_date)
-        st.subheader(f"Maximized Leave Elapsed: {max_elapsed_days} days")
+        leave_schedule = optimize_leave(start_date, ferie_limit)
+        st.subheader("Leave Schedule Generated Successfully!")
         
         render_calendar_with_calplot(leave_schedule)
         st.download_button(
