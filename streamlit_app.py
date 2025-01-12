@@ -4,6 +4,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import calplot
 import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
 
 # List of public holidays in Italy
 ITALIAN_HOLIDAYS = [
@@ -56,6 +57,7 @@ def optimize_leave(start_date: datetime, leave_format: str):
 
     return df_schedule, max_elapsed_days
 
+
 def render_calendar_with_calplot(leave_schedule):
     """
     Render a calendar visualization using calplot with leave days and holidays.
@@ -85,10 +87,13 @@ def render_calendar_with_calplot(leave_schedule):
     calplot_values = all_days["Value"]
     calplot_values.index = pd.to_datetime(all_days.index)
 
+    # Define custom colormap
+    cmap = ListedColormap(["white", "blue", "green"])
+
     # Plot with calplot
     fig, ax = calplot.calplot(
         calplot_values,
-        cmap=["white", "blue", "green"],
+        cmap=cmap,
         suptitle="Leave Calendar Heatmap",
         suptitle_kws={"x": 0.5, "y": 1.0},
         figsize=(16, 8),
