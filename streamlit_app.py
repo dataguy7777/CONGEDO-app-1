@@ -1,8 +1,9 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 from datetime import datetime, timedelta
-import calendar
-import plotly.graph_objects as go
+import calplot
+import matplotlib.pyplot as plt
 
 # List of public holidays in Italy
 ITALIAN_HOLIDAYS = [
@@ -55,16 +56,15 @@ def optimize_leave(start_date: datetime, leave_format: str):
 
     return df_schedule, max_elapsed_days
 
-# Helper function to render calendar
-def render_calendar(leave_schedule, start_year):
+# Helper function to render calendar using calplot
+def render_calendar_with_calplot(leave_schedule):
     """
-    Render a calendar visualization with leave days (blue), holidays (green), and working days (white).
-    
+    Render a calendar visualization using calplot with leave days and holidays.
+
     Args:
         leave_schedule (DataFrame): Optimized leave schedule.
-        start_year (int): Starting year for the calendar.
     """
-    st.write("### Leave Calendar with Holidays")
+    st.write("### Leave Calendar Heatmap")
 
     # Create a list of all leave days
     leave_days = []
@@ -72,49 +72,32 @@ def render_calendar(leave_schedule, start_year):
         for day in range(row["Leave Duration"]):
             leave_days.append(row["Start Date"] + timedelta(days=day))
     
-    leave_days = pd.Series(pd.to_datetime(leave_days))
+    leave_days = pd.Series(pd.to_datetime(leave_days), name="Leave Days")
 
-    # Generate calendar visualization month by month
-    for month in range(1, 13):
-        days_in_month = pd.date_range(f"{start_year}-{month:02d}-01", periods=31, freq="D")
-        month_days = [d for d in days_in_month if d.month == month]
+    # Combine leave days and public holidays into a DataFrame
+    all_days = pd.DataFrame(index=leave_days.append(ITALIAN_HOLIDAYS).unique())
+    all_days["Type"] = "Working Day"
+    all_days.loc[all_days.index.isin(leave_days), "Type"] = "Leave Day"
+    all_days.loc[all_days.index.isin(ITALIAN_HOLIDAYS), "Type"] = "Holiday"
+    all_days["Value"] = all_days["Type"].map({"Leave Day": 1, "Holiday": 2, "Working Day": 0})
+    
+    # Prepare values for calplot
+    calplot_values = all_days["Value"]
+    calplot_values.index = pd.to_datetime(all_days.index)
 
-        # Prepare data for visualization
-        day_colors = []
-        for day in month_days:
-            if day in leave_days.values:
-                day_colors.append("blue")  # Leave days
-            elif day in ITALIAN_HOLIDAYS.values:
-                day_colors.append("green")  # Public holidays
-            else:
-                day_colors.append("white")  # Working days
-
-        # Create the calendar figure for the month
-        fig = go.Figure(data=go.Table(
-            header=dict(
-                values=[f"<b>{calendar.month_name[month]} {start_year}</b>"],
-                align='center',
-                font=dict(size=16),
-                fill_color="lightgray"
-            ),
-            cells=dict(
-                values=[[f"{day.day} ({day.strftime('%a')})" for day in month_days]],
-                align='center',
-                font=dict(color=day_colors),
-                fill_color=day_colors
-            )
-        ))
-
-        fig.update_layout(
-            margin=dict(l=0, r=0, t=30, b=0),
-            height=300
-        )
-
-        st.plotly_chart(fig, use_container_width=True)
+    # Plot with calplot
+    fig, ax = calplot.calplot(
+        calplot_values,
+        cmap=["white", "blue", "green"],
+        suptitle="Leave Calendar Heatmap",
+        suptitle_kws={"x": 0.5, "y": 1.0},
+        figsize=(16, 8),
+    )
+    st.pyplot(fig)
 
 # Streamlit app
 def main():
-    st.title("Parental Leave Maximizer with Calendar View")
+    st.title("Parental Leave Maximizer with Heatmap")
     st.markdown(
         """
         Use this app to plan and maximize your parental leave usage while adhering to the 180-day limit.
@@ -130,8 +113,7 @@ def main():
         leave_schedule, max_elapsed_days = optimize_leave(start_date, leave_format)
         st.subheader(f"Maximized Leave Elapsed: {max_elapsed_days} days")
         
-        start_year = start_date.year
-        render_calendar(leave_schedule, start_year)
+        render_calendar_with_calplot(leave_schedule)
         
         st.download_button(
             label="Download Leave Schedule",
