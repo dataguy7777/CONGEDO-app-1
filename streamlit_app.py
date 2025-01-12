@@ -59,28 +59,34 @@ def optimize_leave(start_date: datetime, leave_format: str):
 
 
 
+from matplotlib.colors import ListedColormap
+
 def render_calendar_with_calplot(leave_schedule):
     """
-    Render a calendar visualization using calplot with leave days, holidays, and weekends.
+    Render a calendar visualization using calplot with numbered leave days, weekends, and holidays.
 
     Args:
         leave_schedule (DataFrame): Optimized leave schedule.
     """
-    st.write("### Leave Calendar Heatmap")
+    st.write("### Leave Calendar Heatmap with Numbered Leave Days")
 
     # Create a list of all leave days excluding weekends
     leave_days = []
+    leave_day_numbers = {}  # Dictionary to store leave day numbers
+    leave_counter = 1
     for _, row in leave_schedule.iterrows():
         current_date = row["Start Date"]
         for _ in range(row["Leave Duration"]):
-            if current_date.weekday() < 5:  # Exclude Saturdays (5) and Sundays (6)
+            if current_date.weekday() < 5:  # Exclude weekends
                 leave_days.append(current_date)
+                leave_day_numbers[current_date] = leave_counter
+                leave_counter += 1
             current_date += timedelta(days=1)
 
     leave_days = pd.Series(pd.to_datetime(leave_days), name="Leave Days")
 
     # Combine leave days, public holidays, and weekends into a DataFrame
-    all_days_index = pd.Index(leave_days).union(pd.Index(ITALIAN_HOLIDAYS))
+    all_days_index = pd.date_range(start=leave_days.min(), end=leave_days.max(), freq="D")
     all_days = pd.DataFrame(index=all_days_index)
     all_days["Type"] = "Working Day"
     all_days.loc[all_days.index.isin(leave_days), "Type"] = "Leave Day"
@@ -94,7 +100,12 @@ def render_calendar_with_calplot(leave_schedule):
     all_days["Value"] = all_days["Type"].map(
         {"Leave Day": 1, "Holiday": 2, "Weekend": 3, "Working Day": 0}
     )
-    
+
+    # Prepare text annotations for leave days (numbered leave days)
+    text_annotations = all_days.index.map(
+        lambda x: str(leave_day_numbers[x]) if x in leave_day_numbers else ""
+    )
+
     # Prepare values for calplot
     calplot_values = all_days["Value"]
     calplot_values.index = pd.to_datetime(all_days.index)
@@ -110,7 +121,22 @@ def render_calendar_with_calplot(leave_schedule):
         suptitle_kws={"x": 0.5, "y": 1.0},
         figsize=(16, 8),
     )
+
+    # Add annotations for numbered leave days
+    for i, day in enumerate(calplot_values.index):
+        if calplot_values[day] == 1:  # Leave Day
+            ax.text(
+                x=(day - day.replace(hour=0, minute=0, second=0)).days % 7 + 0.5,
+                y=-(day.dayofweek + day.day) // 7 + 0.5,
+                s=text_annotations[i],
+                color="white",
+                ha="center",
+                va="center",
+                fontsize=8,
+            )
+
     st.pyplot(fig)
+
 
 # Streamlit app
 def main():
